@@ -136,90 +136,53 @@ export default {
 
       @on('didInsertElement')
       _setupDOM() {
-        if (this.get('showThumbnail')) {
-          this._sizeThumbnails()
-        }
         if ($('#suggested-topics').length) {
           this.$('.topic-thumbnail, .topic-category, .topic-actions, .topic-excerpt').hide()
         } else {
-          Ember.run.scheduleOnce('render', this, () => {
-            this._rearrangeDOM()
-            if (this.get('showActions')) {
-              this._setupActions()
-            }
-          })
+          this._afterRender()
         }
       },
 
-      _rearrangeDOM() {
-        if (this.get('site.mobileView')) {return}
-        if (!this.$('.main-link')) {return}
-        this.$('.main-link').children().not('.topic-thumbnail').wrapAll("<div class='topic-details' />");
-        this.$('.topic-details').children('.topic-statuses, .title, .topic-post-badges').wrapAll("<div class='topic-title'/>");
-        this.$('.topic-thumbnail').prependTo(this.$('.main-link')[0]);
+      @observes('thumbnails')
+      _afterRender() {
+        Ember.run.scheduleOnce('afterRender', this, () => {
+          this._setupTitleCSS()
+          if (this.get('showThumbnail') && this.get('socialStyle')) {
+            this._sizeThumbnails()
+          }
+          if (this.get('showExcerpt')) {
+            this._setupExcerptClick()
+            this._setupExcerptHeight()
+          }
+          if (this.get('showActions')) {
+            this._setupActions()
+          }
+        })
+      },
+
+      _setupTitleCSS() {
         this.$('.topic-title a.visited').closest('.topic-details').addClass('visited');
+      },
 
-        var showExcerpt = this.get('showExcerpt'),
-            showCategoryBadge = this.get('showCategoryBadge'),
-            showActions = this.get('showActions'),
-            $excerpt = this.$('.topic-excerpt'),
-            socialMediaStyle = this.get('socialMediaStyle');
+      _setupExcerptHeight() {
+        if (!this.get('socialStyle') && this.get('showExcerpt')) {
+          let height = 0;
+          this.$('.topic-details > :not(.topic-excerpt):not(.discourse-tags)').each(function(){
+            height += $(this).height()
+          })
+          let excerpt = 100 - height;
+          this.$('.topic-excerpt').css('max-height', (excerpt >= 17 ? (excerpt > 35 ? excerpt : 17) : 0))
+        }
+      },
 
-        $excerpt.on('click.topic-excerpt', () => {
-          var topic = this.get('topic'),
+      _setupExcerptClick() {
+        this.$('.topic-excerpt').on('click.topic-excerpt', () => {
+          let topic = this.get('topic'),
               url = '/t/' + topic.slug + '/' + topic.id;
           if (topic.topic_post_id) {
             url += '/' + topic.topic_post_id
           }
           DiscourseURL.routeTo(url)
-        })
-
-        if (showCategoryBadge) {
-          this.$('.discourse-tags').insertAfter(this.$('.topic-category'))
-        } else if (showActions) {
-          this.$('.discourse-tags').insertAfter(this.$('.topic-actions'))
-        } else if (showExcerpt) {
-          this.$('.discourse-tags').insertAfter($excerpt)
-        }
-
-        if (showActions) {
-          this.$('.list-vote-count').prependTo(this.$('.topic-actions'))
-          if ($excerpt) {
-            this.$('.topic-actions').insertAfter($excerpt)
-          }
-        } else if (showExcerpt) {
-          this.$('.list-vote-count').insertAfter($excerpt)
-        }
-
-        if (!socialMediaStyle && showExcerpt) {
-          var height = 0;
-          this.$('.topic-details > :not(.topic-excerpt):not(.discourse-tags)').each(function(){ height += $(this).height() })
-          var excerpt = 100 - height;
-          $excerpt.css('max-height', (excerpt >= 17 ? (excerpt > 35 ? excerpt : 17) : 0))
-        }
-
-        if (socialMediaStyle) {
-          this.$('td:not(.main-link)').hide()
-          this.$().addClass('social')
-          this.$('.topic-intro').prependTo(this.$('.main-link'))
-          this.$('.topic-title').prependTo(this.$('.main-link'))
-          if (this.$('.topic-details').children().length < 1)
-            this.$('.topic-details').hide()
-        }
-      },
-
-      _setupActions() {
-        var postId = this.get('topic.topic_post_id'),
-            $bookmark = this.$('.topic-bookmark'),
-            $like = this.$('.topic-like');
-        $bookmark.on('click.topic-bookmark', () => {this.toggleBookmark($bookmark, postId)})
-        $like.on('click.topic-like', () => {
-          if (this.get('currentUser')) {
-            this.toggleLike($like, postId);
-          } else {
-            const controller = this.container.lookup('controller:application');
-            controller.send('showLogin');
-          }
         })
       },
 
@@ -229,7 +192,26 @@ export default {
             'width': $(this)[0].naturalWidth
           })
         })
-},
+      },
+
+      _setupActions() {
+        let postId = this.get('topic.topic_post_id'),
+            $bookmark = this.$('.topic-bookmark'),
+            $like = this.$('.topic-like');
+
+        $bookmark.on('click.topic-bookmark', () => {
+          this.toggleBookmark($bookmark, postId)
+        })
+
+        $like.on('click.topic-like', () => {
+          if (this.get('currentUser')) {
+            this.toggleLike($like, postId);
+          } else {
+            const controller = container.lookup('controller:application');
+            controller.send('showLogin');
+          }
+        })
+      },
 
       @on('willDestroyElement')
       _tearDown() {
